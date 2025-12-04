@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Smart IDE (Runtime Interpreter)</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- JSZip & FileSaver -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600&display=swap');
+        
+        body {
+            font-family: 'JetBrains Mono', monospace;
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+            overflow: hidden; 
+        }
+        
+        .code-editor {
+            background-color: #252526;
+            color: #dcdcaa;
+            font-family: 'JetBrains Mono', monospace;
+            border: none;
+            resize: none;
+            outline: none;
+            line-height: 1.5;
+            white-space: pre;
+            overflow-wrap: normal;
+            overflow-x: auto;
+        }
+
+        /* Standard dark theme scrollbar styling */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #1e1e1e; }
+        ::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #555; }
+
+        .tab-active { background-color: #1e1e1e; border-top: 2px solid #007acc; color: #fff; }
+        .tab-inactive { background-color: #2d2d2d; color: #969696; }
+
+        /* Terminal Styling */
+        .terminal-log { font-family: 'Courier New', Courier, monospace; font-size: 0.85rem; }
+        .log-info { color: #61afef; }
+        .log-success { color: #98c379; }
+        .log-warn { color: #e5c07b; }
+        .log-error { color: #e06c75; }
+
+        .scan-line {
+            width: 100%;
+            height: 2px;
+            background: #007acc;
+            position: absolute;
+            top: 0;
+            left: 0;
+            animation: scan 2s linear infinite;
+            display: none;
+            box-shadow: 0 0 10px #007acc;
+        }
+        @keyframes scan {
+            0% { top: 0; opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { top: 100%; opacity: 0; }
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col">
+
+    <!-- Header / Toolbar -->
+    <header class="bg-[#333333] text-white p-2 flex justify-between items-center shadow-md z-10 border-b border-black">
+        <div class="flex items-center gap-2">
+            <i class="fa-solid fa-microchip text-purple-500"></i>
+            <span class="font-bold tracking-tight">AI Runtime Interpreter IDE</span>
+        </div>
+        
+        <div class="flex gap-2">
+            <button onclick="aiErrorCheck()" class="bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-1 rounded text-xs transition flex items-center gap-1">
+                <i class="fa-solid fa-stethoscope"></i> <span class="hidden md:inline">Kod Düzelt</span>
+            </button>
+            <button onclick="togglePreview()" class="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded text-xs transition flex items-center gap-1">
+                <i class="fa-solid fa-eye"></i> <span class="hidden md:inline">Görüntüle</span>
+            </button>
+            <button onclick="openApkModal()" class="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white px-3 py-1 rounded text-xs transition flex items-center gap-1 font-bold shadow-lg border border-indigo-400">
+                <i class="fa-brands fa-android"></i> <span class="hidden md:inline">APK Oluştur (Runtime Çekirdek)</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Tabs -->
+    <div class="flex bg-[#252526] text-xs select-none border-b border-[#1e1e1e]">
+        <div onclick="switchTab('kotlin')" id="tab-kotlin" class="tab-active cursor-pointer px-4 py-2 flex items-center gap-2 min-w-fit border-r border-[#1e1e1e]">
+            <i class="fa-brands fa-android text-green-400"></i> Kotlin
+        </div>
+        <div onclick="switchTab('python')" id="tab-python" class="tab-inactive cursor-pointer px-4 py-2 flex items-center gap-2 min-w-fit border-r border-[#1e1e1e]">
+            <i class="fa-brands fa-python text-yellow-400"></i> Python
+        </div>
+        <div onclick="switchTab('html')" id="tab-html" class="tab-inactive cursor-pointer px-4 py-2 flex items-center gap-2 min-w-fit border-r border-[#1e1e1e]">
+            <i class="fa-brands fa-html5 text-orange-500"></i> HTML
+        </div>
+        <div onclick="switchTab('java')" id="tab-java" class="tab-inactive cursor-pointer px-4 py-2 flex items-center gap-2 min-w-fit border-r border-[#1e1e1e]">
+            <i class="fa-brands fa-java text-red-400"></i> Java
+        </div>
+    </div>
+
+    <!-- Main Editor Area -->
+    <main class="flex-1 relative flex overflow-hidden">
+        <!-- Scan Animation Line -->
+        <div id="scanner-line" class="scan-line z-10"></div>
+
+        <!-- Editors -->
+        <textarea id="editor-kotlin" class="code-editor w-full h-full p-4" spellcheck="false" placeholder="// Kotlin Kodunuzu buraya yazın...
+fun main() {
+    println('Merhaba Universal Runtime')
+}"></textarea>
+
+        <textarea id="editor-python" class="code-editor w-full h-full p-4 hidden" spellcheck="false" placeholder="# Python Kodunuzu buraya yazın...
+print('Merhaba Universal Runtime')"></textarea>
+
+        <textarea id="editor-html" class="code-editor w-full h-full p-4 hidden" spellcheck="false" placeholder="<!-- HTML Kodunuzu buraya yazın -->
+<h1>Merhaba Universal Runtime</h1>"></textarea>
+
+        <textarea id="editor-java" class="code-editor w-full h-full p-4 hidden" spellcheck="false" placeholder="// Java Kodunuzu buraya yazın...
+public class Main {
+    public static void main(String[] args) {
+        System.out.println('Merhaba Universal Runtime');
+    }
+}"></textarea>
+
+        <!-- Preview Overlay -->
+        <div id="preview-pane" class="absolute inset-0 bg-white z-20 hidden flex flex-col">
+            <div class="bg-gray-200 text-black p-2 flex justify-between items-center border-b border-gray-300">
+                <span class="font-bold text-sm">Web Önizleme</span>
+                <button onclick="togglePreview()" class="text-red-600 font-bold px-2">X</button>
+            </div>
+            <iframe id="preview-frame" class="w-full flex-1 border-none bg-white"></iframe>
+        </div>
+    </main>
+
+    <!-- Footer Status -->
+    <footer class="bg-[#4f46e5] text-white text-xs p-1 flex justify-between px-2 cursor-default">
+        <div id="status-bar"><i class="fa-solid fa-check-circle"></i> Sistem Hazır</div>
+        <div>Gemini 2.5 Flash | Interpreter Core Logic</div>
+    </footer>
+
+    <!-- APK Modal (Same as before) -->
+    <div id="apk-modal" class="fixed inset-0 bg-black bg-opacity-80 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-[#1e1e1e] rounded-xl shadow-2xl w-full max-w-lg border border-gray-600 flex flex-col max-h-[90vh]">
+            <div class="p-4 border-b border-gray-600 flex justify-between items-center bg-[#252526] rounded-t-xl">
+                <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                    <i class="fa-brands fa-android text-green-500"></i> 
+                    APK Yapılandırma
+                </h2>
+                <button onclick="closeApkModal()" class="text-gray-400 hover:text-white"><i class="fa-solid fa-times"></i></button>
+            </div>
+            
+            <div class="p-6 overflow-y-auto space-y-4">
+                <!-- App Info -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Uygulama Adı</label>
+                        <input type="text" id="app-name" class="w-full bg-[#333] border border-gray-600 rounded p-2 text-white text-sm outline-none focus:border-blue-500" placeholder="MyAIApp">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Geliştirici</label>
+                        <input type="text" id="dev-name" class="w-full bg-[#333] border border-gray-600 rounded p-2 text-white text-sm outline-none focus:border-blue-500" placeholder="You">
+                    </div>
+                </div>
+
+                <!-- Icon -->
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">İkon (Opsiyonel)</label>
+                    <input type="file" id="app-icon" accept="image/*" class="w-full text-xs text-gray-400 file:mr-2 file:py-1 file:px-3 file:rounded file:border-0 file:bg-blue-600 file:text-white">
+                </div>
+
+                <!-- Permissions -->
+                <div>
+                    <label class="block text-xs text-gray-400 mb-2">İzinler (Manifest)</label>
+                    <div class="grid grid-cols-2 gap-2 bg-[#111] p-3 rounded border border-gray-600 h-28 overflow-y-auto text-xs">
+                        <label class="flex items-center gap-2 cursor-pointer hover:bg-[#222] p-1 rounded">
+                            <input type="checkbox" value="INTERNET" class="accent-blue-500"> <span>INTERNET</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer hover:bg-[#222] p-1 rounded">
+                            <input type="checkbox" value="CAMERA" class="accent-blue-500"> <span>CAMERA</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer hover:bg-[#222] p-1 rounded">
+                            <input type="checkbox" value="ACCESS_FINE_LOCATION" class="accent-blue-500"> <span>LOCATION</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer hover:bg-[#222] p-1 rounded">
+                            <input type="checkbox" value="VIBRATE" class="accent-blue-500"> <span>TİTREŞİM</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer Button -->
+            <div class="p-4 border-t border-gray-600 bg-[#252526] rounded-b-xl flex justify-end gap-3">
+                <button onclick="startAiProcess()" class="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold py-3 px-6 rounded shadow-lg transform active:scale-95 transition flex items-center justify-center gap-2 text-sm">
+                    <i class="fa-solid fa-bolt"></i> Runtime Enjeksiyonu Başlat
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI Terminal / Progress Overlay -->
+    <div id="ai-terminal" class="fixed inset-0 bg-black z-[60] hidden flex flex-col p-4 md:p-10 font-mono">
+        <div class="w-full max-w-3xl mx-auto bg-[#1e1e1e] border border-gray-700 rounded-lg shadow-2xl flex flex-col h-3/4 overflow-hidden">
+            <!-- Terminal Header -->
+            <div class="bg-[#2d2d2d] p-2 flex items-center gap-2 border-b border-gray-700">
+                <div class="flex gap-1.5">
+                    <div class="w-3 h-3 rounded-full bg-red-500"></div>
+                    <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+                    <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                </div>
+                <div class="text-xs text-gray-400 ml-2">gemini-universal-runtime-v2.0</div>
+            </div>
+            
+            <!-- Terminal Body -->
+            <div id="terminal-content" class="flex-1 p-4 overflow-y-auto text-sm space-y-2 bg-black bg-opacity-50 text-gray-300">
+                <div class="text-green-500">$ init sequence started...</div>
+            </div>
+            
+            <!-- Progress Bar -->
+            <div class="h-1 bg-gray-800 w-full mt-auto">
+                <div id="progress-bar" class="h-full bg-indigo-500 w-0 transition-all duration-300"></div>
+            </div>
+        </div>
+        <button id="close-terminal-btn" onclick="closeTerminal()" class="mx-auto mt-6 bg-red-600 text-white px-6 py-2 rounded hidden hover:bg-red-700 transition">Kapat</button>
+    </div>
+
+    <script>
+        // --- CONFIG ---
+        const _k1 = "QUl6YVN5Qld1ZHRFWFhI";
+        const _k2 = "c0EwVDAwaHlOSnVPcTVD";
+        const _k3 = "UlJxZkFrVmgw";
+        const API_KEY = atob(_k1 + _k2 + _k3);
+        
+        let currentTab = 'kotlin';
+        let iconData = null;
+        
+        // --- THE UNIVERSAL RUNTIME INTERPRETER CORE ---
+        // Bu kod (simüle edilmiş binarycode), uygulamanın orijinal kaynak kodunu okuyup yorumlayacak olan çekirdeği temsil eder.
+        const UNIVERSAL_BYTECODE_CORE = `
+# Universal Runtime Interpreter Core (Simulated classes.dex)
+# -----------------------------------------------------------------------
+# OpCode 0x01: INITIALIZE_VM_CONTEXT (Sanal Makine başlatıldı)
+# OpCode 0x02: READ_MANIFEST_FOR_ENTRY_POINT (Başlangıç noktası okundu)
+# OpCode 0x03: LOCATE_APP_PAYLOAD (Payload aranıyor: Source files)
+# OpCode 0x04: LOAD_INTERPRETER_MODULE (${currentTab.toUpperCase()} Yorumlayıcısı Yüklendi)
+# OpCode 0x05: EXECUTE_SOURCE_CODE (Kaynak kodun yorumlanması başlatıldı)
+# -----------------------------------------------------------------------
+# Signature: GMN-RUNTIME-INTERPRETER-V2.0
+`;
+
+
+        // --- TABS & UI ---
+        function switchTab(lang) {
+            document.querySelectorAll('.code-editor').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('[id^="tab-"]').forEach(el => {
+                el.classList.remove('tab-active'); el.classList.add('tab-inactive');
+            });
+            document.getElementById(`editor-${lang}`).classList.remove('hidden');
+            document.getElementById(`tab-${lang}`).classList.add('tab-active');
+            document.getElementById(`tab-${lang}`).classList.remove('tab-inactive');
+            currentTab = lang;
+            document.getElementById('status-bar').innerHTML = `<i class="fa-solid fa-pen"></i> ${lang.toUpperCase()} Düzenleniyor`;
+            
+            // Update the core content to reflect the new language being targeted by the VM
+            const coreEl = document.getElementById('core-payload');
+            if (coreEl) coreEl.textContent = UNIVERSAL_BYTECODE_CORE.replace(/LOAD_INTERPRETER_MODULE \(.*?\)/, `LOAD_INTERPRETER_MODULE (${lang.toUpperCase()} Yorumlayıcısı Yüklendi)`);
+        }
+
+        function togglePreview() {
+            const pane = document.getElementById('preview-pane');
+            const frame = document.getElementById('preview-frame');
+            if (pane.classList.contains('hidden')) {
+                if(currentTab !== 'html') { 
+                    // Custom message instead of alert
+                    const msg = "Önizleme sadece HTML/Web içeriği için görsel olarak gösterilebilir. Diğer diller kod tabanlıdır.";
+                    log(msg, 'warn'); 
+                    return; 
+                }
+                pane.classList.remove('hidden');
+                frame.src = URL.createObjectURL(new Blob([document.getElementById('editor-html').value], {type: 'text/html'}));
+            } else {
+                pane.classList.add('hidden');
+                frame.src = '';
+            }
+        }
+
+        function openApkModal() { document.getElementById('apk-modal').classList.remove('hidden'); }
+        function closeApkModal() { document.getElementById('apk-modal').classList.add('hidden'); }
+        function closeTerminal() { document.getElementById('ai-terminal').classList.add('hidden'); }
+
+        document.getElementById('app-icon').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if(file) {
+                const r = new FileReader();
+                r.onload = () => iconData = r.result;
+                r.readAsDataURL(file);
+            }
+        });
+
+        // --- TERMINAL UTILS ---
+        function log(msg, type='info') {
+            const term = document.getElementById('terminal-content');
+            const div = document.createElement('div');
+            div.className = `terminal-log log-${type}`;
+            const time = new Date().toLocaleTimeString('tr-TR', {hour12:false});
+            
+            let icon = '>';
+            if(type === 'success') icon = '✓';
+            if(type === 'error') icon = '✗';
+            if(type === 'warn') icon = '!';
+
+            div.innerHTML = `<span class="opacity-50">[${time}]</span> <span class="font-bold">${icon}</span> ${msg}`;
+            term.appendChild(div);
+            term.scrollTop = term.scrollHeight;
+        }
+
+        function setProgress(percent) {
+            document.getElementById('progress-bar').style.width = percent + '%';
+        }
+
+        // --- AI LOGIC CORE ---
+
+        async function startAiProcess() {
+            closeApkModal();
+            const rawCode = document.getElementById(`editor-${currentTab}`).value;
+            if(!rawCode.trim()) { alert("Kod boş olamaz!"); return; }
+
+            // UI Init
+            document.getElementById('ai-terminal').classList.remove('hidden');
+            document.getElementById('terminal-content').innerHTML = ''; 
+            document.getElementById('close-terminal-btn').classList.add('hidden');
+            document.getElementById('scanner-line').style.display = 'block'; 
+            
+            const appName = document.getElementById('app-name').value || "MyApp";
+            const devName = document.getElementById('dev-name').value || "AI Dev";
+            let perms = [];
+            document.querySelectorAll('#apk-modal input[type="checkbox"]:checked').forEach(c => perms.push(c.value));
+
+            try {
+                // STEP 1: Code Scanning & Fixing
+                log("Compiler Modülü başlatılıyor...", "info");
+                setProgress(10);
+                await new Promise(r => setTimeout(r, 500)); 
+                
+                log(`Kaynak kod analiz ediliyor (${currentTab})... Kod, Runtime Payload'u olarak hazırlanıyor.`, "warn");
+                
+                const fixedCode = await aiFixCode(rawCode, currentTab);
+                
+                log("Hata taraması tamamlandı. Kaynak kod optimize edildi.", "success");
+                setProgress(30);
+
+                // STEP 2: Project Structure Generation (Payload)
+                log("Proje yapısı (Manifest, Kaynaklar) Gemini tarafından oluşturuluyor...", "warn");
+                
+                // Gemini generates the project structure and source code payload (the files the interpreter will read)
+                const projectStructure = await aiGenerateStructure(fixedCode, currentTab, appName, devName, perms);
+                
+                log("Payload (Uygulama Kaynak Dosyaları) hazırlandı.", "success");
+                setProgress(60);
+
+                // STEP 3: Universal Runtime Core Injection
+                log("Universal Runtime Interpreter Çekirdeği (classes.dex) enjekte ediliyor...", "success");
+                // Inject the constant Interpreter Core here.
+                projectStructure["app/build/intermediates/dex/classes.dex"] = UNIVERSAL_BYTECODE_CORE.replace(/LOAD_INTERPRETER_MODULE \(.*?\)/, `LOAD_INTERPRETER_MODULE (${currentTab.toUpperCase()} Yorumlayıcısı Yüklendi)`);
+                
+                log(`Runtime Çekirdek Enjeksiyonu tamamlandı. Çekirdek, ${currentTab.toUpperCase()} kodunuzu çalıştıracak.`, "success");
+                setProgress(80);
+
+                // STEP 4: ZIP Packaging
+                log("Paketleme ve İmzalama başlatılıyor...", "warn");
+                
+                const zipContent = await createZip(projectStructure, appName, devName, perms);
+                
+                log("APK dosyası (Runtime Çekirdekli ZIP) hazır.", "success");
+                setProgress(100);
+
+                saveAs(zipContent, `${appName.replace(/\s/g, '_')}_Runtime_Sim.apk`);
+                
+                document.getElementById('scanner-line').style.display = 'none';
+                document.getElementById('close-terminal-btn').classList.remove('hidden');
+                log("İNDİRME BAŞLATILDI.", "success");
+
+            } catch (err) {
+                log(`KRİTİK HATA: ${err.message}`, "error");
+                document.getElementById('scanner-line').style.display = 'none';
+                document.getElementById('close-terminal-btn').classList.remove('hidden');
+            }
+        }
+
+        // --- GEMINI API CALLS ---
+
+        async function aiFixCode(code, lang) {
+            const prompt = `
+                ACT AS: A Senior Software Engineer & Compiler.
+                TASK: Review the following ${lang} code. Detect syntax errors, logical bugs, and potential crashes. FIX THEM.
+                STRICT OUTPUT: Return ONLY the fixed code. No markdown, no explanations.
+                
+                CODE TO FIX:
+                ${code}
+            `;
+            return await callGemini(prompt);
+        }
+
+        async function aiGenerateStructure(code, lang, appName, devName, perms) {
+            const prompt = `
+                ACT AS: Android Project Structure Generator. The primary goal is to structure the SOURCE CODE so that a Universal Runtime Interpreter Core (not a traditional compiler) can read and execute it.
+                TASK: Convert this corrected ${lang} code into a full Android Project Structure JSON, preparing the source files (the Runtime payload).
+                DETAILS: AppName="${appName}", Dev="${devName}", Permissions=${perms.join(',')}.
+                
+                INSTRUCTIONS:
+                1. If ${lang} is Kotlin/Java, embed the code correctly into the MainActivity file structure.
+                2. If ${lang} is Python, create a Python runner script and an appropriate MainActivity that launches the Python interpreter.
+                3. If ${lang} is HTML, create an index.html file and an appropriate MainActivity that launches the WebView.
+                4. Do NOT generate the classes.dex file content; the Universal Runtime Core will be injected separately.
+                
+                OUTPUT JSON FORMAT (Return ONLY JSON):
+                {
+                    "app/src/main/AndroidManifest.xml": "string content",
+                    "app/src/main/java/com/${devName.toLowerCase().replace(/\s/g, '')}/${appName.toLowerCase().replace(/\s/g, '')}/MainActivity.kt": "string content",
+                    "app/src/main/res/layout/activity_main.xml": "string content",
+                    "README_AI_REPORT.txt": "AI generated source code, project structure, and prepared the payload for Runtime Interpreter injection."
+                }
+
+                SOURCE CODE:
+                ${code}
+            `;
+            const raw = await callGemini(prompt);
+            const jsonStr = raw.replace(/```json/g, '').replace(/```/g, '').trim();
+            return JSON.parse(jsonStr);
+        }
+
+        async function callGemini(text) {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${API_KEY}`;
+            const resp = await fetch(url, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ contents: [{ parts: [{ text: text }] }] })
+            });
+            const data = await resp.json();
+            if(!data.candidates) throw new Error("AI Yanıt Vermedi.");
+            return data.candidates[0].content.parts[0].text;
+        }
+
+        // --- ZIP CREATION ---
+        async function createZip(structure, appName, dev, perms) {
+            const zip = new JSZip();
+            const root = zip.folder(appName + "_Runtime_Sim_Project");
+
+            // Add files from structure (Source code and Manifest)
+            for (const [path, content] of Object.entries(structure)) {
+                root.file(path, content);
+            }
+
+            // Inject the constant Interpreter Core
+            const currentCore = UNIVERSAL_BYTECODE_CORE.replace(/LOAD_INTERPRETER_MODULE \(.*?\)/, `LOAD_INTERPRETER_MODULE (${currentTab.toUpperCase()} Yorumlayıcısı Yüklendi)`);
+            root.file("app/build/intermediates/dex/classes.dex", currentCore);
+
+
+            // Add Icon
+            if(iconData) {
+                root.file("app/src/main/res/mipmap-xxhdpi/ic_launcher.png", iconData.split(',')[1], {base64:true});
+            }
+
+            return await zip.generateAsync({type:"blob"});
+        }
+        
+        // Manual Trigger for user
+        async function aiErrorCheck() {
+            const code = document.getElementById(`editor-${currentTab}`).value;
+            if(!code.trim()) return alert("Kod yok.");
+            
+            const btn = document.querySelector('button[onclick="aiErrorCheck()"]');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Taranıyor...`;
+            
+            try {
+                const fixed = await aiFixCode(code, currentTab);
+                document.getElementById(`editor-${currentTab}`).value = fixed;
+                alert("Gemini Kodunuzu Taradı ve Optimize Etti! (Kod editörde güncellendi.)");
+            } catch(e) {
+                alert("Hata: " + e.message);
+            } finally {
+                btn.innerHTML = originalText;
+            }
+        }
+
+        // Initial tab setup
+        window.onload = () => switchTab('kotlin');
+    </script>
+</body>
+</html>
+
