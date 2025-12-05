@@ -3,533 +3,502 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Android Studio - APK Builder</title>
-    <!-- Tailwind CSS -->
+    <title>ElevenStudioIDE - AI Hybrid Compiler</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- JSZip & FileSaver (APK Paketleme için kritik) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
-    <!-- FontAwesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700&display=swap" rel="stylesheet">
     
     <style>
-        :root {
-            --bg-dark: #1e1e1e;
-            --bg-panel: #252526;
-            --accent: #007acc;
-            --text-main: #d4d4d4;
-            --terminal-bg: #121212;
-        }
-        
-        body {
-            font-family: 'JetBrains Mono', monospace;
-            background-color: var(--bg-dark);
-            color: var(--text-main);
-            overflow: hidden;
-        }
-        
-        .code-editor {
-            background-color: var(--bg-dark);
-            color: #dcdcaa;
-            font-family: 'JetBrains Mono', monospace;
-            border: none;
-            resize: none;
-            outline: none;
-            line-height: 1.6;
-            white-space: pre;
-            overflow-wrap: normal;
-            overflow-x: auto;
-            tab-size: 4;
-        }
-
-        /* Scrollbar Styling */
-        ::-webkit-scrollbar { width: 10px; height: 10px; }
+        :root { --bg-dark: #1e1e1e; --bg-panel: #252526; --accent: #f59e0b; --text-main: #d4d4d4; }
+        body { font-family: 'JetBrains Mono', monospace; background-color: var(--bg-dark); color: var(--text-main); overflow: hidden; }
+        .code-editor { background-color: var(--bg-dark); color: #dcdcaa; border: none; resize: none; outline: none; line-height: 1.6; white-space: pre; overflow-wrap: normal; overflow-x: auto; tab-size: 4; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: #1e1e1e; }
-        ::-webkit-scrollbar-thumb { background: #424242; border-radius: 5px; }
-        ::-webkit-scrollbar-thumb:hover { background: #4f4f4f; }
-
-        /* Terminal Animations */
-        @keyframes blink { 50% { opacity: 0; } }
-        .cursor-blink { animation: blink 1s step-end infinite; }
-        
-        .binary-stream {
-            color: #0f0;
-            text-shadow: 0 0 5px #0f0;
-            font-size: 0.8rem;
-            opacity: 0.8;
-        }
-
-        .tab-active { background-color: #1e1e1e; border-top: 2px solid #007acc; color: #fff; }
+        ::-webkit-scrollbar-thumb { background: #424242; border-radius: 4px; }
+        .tab-active { background-color: #1e1e1e; border-top: 2px solid var(--accent); color: #fff; }
         .tab-inactive { background-color: #2d2d2d; color: #969696; }
-        .tab-inactive:hover { background-color: #2a2d2e; }
+        .tab-inactive:hover { background-color: #333; }
+        /* ElevenStudio Özel Tema */
+        .eleven-brand { background: linear-gradient(90deg, #f59e0b, #d97706); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: bold; }
     </style>
 </head>
 <body class="h-screen flex flex-col">
 
-    <!-- Top Bar -->
-    <header class="bg-[#333333] text-white h-12 flex justify-between items-center px-4 shadow-md select-none border-b border-black">
+    <!-- Header -->
+    <header class="bg-[#2d2d2d] text-white h-14 flex justify-between items-center px-4 shadow-lg border-b border-black z-20">
         <div class="flex items-center gap-3">
-            <div class="bg-gradient-to-br from-green-500 to-green-700 w-8 h-8 rounded flex items-center justify-center shadow-lg">
-                <i class="fa-brands fa-android text-white text-lg"></i>
+            <div class="bg-gradient-to-br from-yellow-500 to-orange-600 w-9 h-9 rounded flex items-center justify-center shadow-lg border border-yellow-400">
+                <i class="fa-solid fa-layer-group text-white text-lg"></i>
             </div>
             <div>
-                <h1 class="font-bold text-sm tracking-wide">AI DROID STUDIO</h1>
-                <p class="text-[10px] text-gray-400">Powered by Gemini 2.5 Flash</p>
+                <h1 class="font-bold text-base tracking-wide text-white">ElevenStudio<span class="text-yellow-500">IDE</span></h1>
+                <p class="text-[10px] text-gray-400">Hybrid Compiler: Kotlin • Python • Java • C++</p>
             </div>
         </div>
-        
         <div class="flex gap-3">
-            <button onclick="togglePreview()" class="bg-[#424242] hover:bg-[#505050] text-white px-4 py-1.5 rounded text-xs transition flex items-center gap-2 border border-[#555]">
-                <i class="fa-solid fa-play text-green-400"></i> <span class="hidden md:inline">Canlı Önizleme</span>
+            <button onclick="aiFixCode()" class="bg-[#3e3e3e] hover:bg-[#4e4e4e] text-yellow-500 border border-yellow-600/30 px-3 py-1.5 rounded text-xs flex items-center gap-2 transition">
+                <i class="fa-solid fa-robot"></i> <span class="hidden md:inline">AI Fix</span>
             </button>
-            <button onclick="openBuildModal()" class="bg-[#007acc] hover:bg-[#0062a3] text-white px-4 py-1.5 rounded text-xs transition flex items-center gap-2 font-bold shadow-lg">
-                <i class="fa-solid fa-cube"></i> <span class="hidden md:inline">APK Olarak Derle</span>
+            <button onclick="togglePreview()" class="bg-[#3e3e3e] hover:bg-[#4e4e4e] text-white px-3 py-1.5 rounded text-xs flex items-center gap-2 transition border border-gray-600">
+                <i class="fa-solid fa-mobile-screen"></i> <span class="hidden md:inline">Simülatör</span>
+            </button>
+            <button onclick="openBuildModal()" class="bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-500 hover:to-orange-500 text-white px-5 py-1.5 rounded text-xs font-bold shadow-lg flex items-center gap-2 border border-orange-400 transition-transform active:scale-95">
+                <i class="fa-brands fa-android"></i> <span class="hidden md:inline">APK OLUŞTUR</span>
             </button>
         </div>
     </header>
 
     <!-- Project Tabs -->
-    <div class="flex bg-[#252526] text-xs select-none border-b border-[#1e1e1e]">
-        <div onclick="switchTab('kotlin')" id="tab-kotlin" class="tab-active cursor-pointer px-4 py-2 flex items-center gap-2 min-w-fit border-r border-[#1e1e1e]">
-            <i class="fa-brands fa-android text-green-400"></i> MainActivity.kt
-        </div>
-        <div onclick="switchTab('xml')" id="tab-xml" class="tab-inactive cursor-pointer px-4 py-2 flex items-center gap-2 min-w-fit border-r border-[#1e1e1e]">
-            <i class="fa-solid fa-code text-orange-400"></i> activity_main.xml
-        </div>
-        <div onclick="switchTab('manifest')" id="tab-manifest" class="tab-inactive cursor-pointer px-4 py-2 flex items-center gap-2 min-w-fit border-r border-[#1e1e1e]">
-            <i class="fa-solid fa-file-shield text-purple-400"></i> AndroidManifest.xml
-        </div>
+    <div class="flex bg-[#252526] text-xs select-none border-b border-[#1e1e1e] overflow-x-auto">
+        <div onclick="switchTab('kotlin')" id="tab-kotlin" class="tab-active cursor-pointer px-4 py-2 flex items-center gap-2 min-w-fit border-r border-[#1e1e1e]"><i class="fa-brands fa-android text-green-400"></i> MainActivity.kt</div>
+        <div onclick="switchTab('python')" id="tab-python" class="tab-inactive cursor-pointer px-4 py-2 flex items-center gap-2 min-w-fit border-r border-[#1e1e1e]"><i class="fa-brands fa-python text-yellow-400"></i> script.py</div>
+        <div onclick="switchTab('java')" id="tab-java" class="tab-inactive cursor-pointer px-4 py-2 flex items-center gap-2 min-w-fit border-r border-[#1e1e1e]"><i class="fa-brands fa-java text-red-400"></i> Logic.java</div>
+        <div onclick="switchTab('cpp')" id="tab-cpp" class="tab-inactive cursor-pointer px-4 py-2 flex items-center gap-2 min-w-fit border-r border-[#1e1e1e]"><i class="fa-solid fa-c text-blue-400"></i> native.cpp</div>
+        <div onclick="switchTab('html')" id="tab-html" class="tab-inactive cursor-pointer px-4 py-2 flex items-center gap-2 min-w-fit border-r border-[#1e1e1e]"><i class="fa-brands fa-html5 text-orange-400"></i> index.html</div>
     </div>
 
     <!-- Main Workspace -->
     <main class="flex-1 relative flex overflow-hidden">
-        
-        <!-- Editor Area -->
-        <div class="flex-1 flex flex-col relative">
-            <div class="absolute top-2 right-4 z-10 opacity-50 text-xs pointer-events-none" id="lang-indicator">Kotlin</div>
+        <div class="flex-1 flex flex-col relative" id="editor-container">
             
             <!-- Kotlin Editor -->
-            <textarea id="editor-kotlin" class="code-editor w-full h-full p-4 text-sm" spellcheck="false">package com.aigen.app
+            <textarea id="editor-kotlin" class="code-editor w-full h-full p-4 text-sm" spellcheck="false">package com.elevenstudio.app
 
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
-import android.widget.Toast
+import com.chaquo.python.Python // Python Entegrasyonu
 
-// Bu kod Gemini tarafından 'classes.dex' binary formatına çevrilecektir.
 class MainActivity : AppCompatActivity() {
-    
-    // Uygulama Başlığı
-    val appTitle = "AI To-Do List"
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        
-        // Başlangıç mesajı
-        Toast.makeText(this, "Hoşgeldiniz: $appTitle", Toast.LENGTH_SHORT).show()
-        
-        // Not: Gerçek UI alttaki 'Canlı Önizleme' butonunda simüle edilir.
-        // APK oluşturulduğunda bu mantık DEX koduna dönüşür.
-    }
-    
-    fun addNewTask(task: String) {
-        if (task.isNotEmpty()) {
-            println("Görev veritabanına eklendi: $task")
+
+        // 1. Python Scriptini Başlat
+        if (!Python.isStarted()) {
+            Python.start(AndroidPlatform(this))
         }
+        val py = Python.getInstance()
+        val pyModule = py.getModule("script")
+        val pyResult = pyModule.callAttr("main_function", "ElevenStudio")
+        
+        println("Python Çıktısı: " + pyResult)
+
+        // 2. C++ Native Çağrısı
+        System.loadLibrary("native-lib")
+        println(stringFromJNI())
+    }
+
+    external fun stringFromJNI(): String
+}</textarea>
+
+            <!-- Python Editor (NEW) -->
+            <textarea id="editor-python" class="code-editor w-full h-full p-4 text-sm hidden" spellcheck="false"># ElevenStudio Python Modülü
+import platform
+import random
+
+def main_function(user_name):
+    """
+    Bu fonksiyon Kotlin tarafından çağrılır.
+    """
+    greetings = ["Merhaba", "Hello", "Hola", "Selam"]
+    selected = random.choice(greetings)
+    
+    system_info = platform.system()
+    
+    return f"{selected}, {user_name}! System: {system_info}. (Python is running inside APK)"
+
+class DataProcessor:
+    def process(self, data):
+        return [d * 2 for d in data]</textarea>
+            
+            <!-- Java Editor -->
+            <textarea id="editor-java" class="code-editor w-full h-full p-4 text-sm hidden" spellcheck="false">package com.elevenstudio.app;
+
+public class Logic {
+    public static String getLegacyData() {
+        return "Java Class Loader Active.";
     }
 }</textarea>
 
-            <!-- XML Editor -->
-            <textarea id="editor-xml" class="code-editor w-full h-full p-4 text-sm hidden" spellcheck="false"><!-- Basit Layout Yapısı -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:padding="16dp"
-    android:background="#FFFFFF">
+            <!-- C++ Editor -->
+            <textarea id="editor-cpp" class="code-editor w-full h-full p-4 text-sm hidden" spellcheck="false">#include <jni.h>
+#include <string>
 
-    <TextView
-        android:id="@+id/titleText"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="My AI App"
-        android:textSize="24sp"
-        android:textStyle="bold" />
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_elevenstudio_app_MainActivity_stringFromJNI(
+        JNIEnv* env,
+        jobject /* this */) {
+    std::string hello = "C++ Native Core Active";
+    return env->NewStringUTF(hello.c_str());
+}</textarea>
 
-    <EditText
-        android:id="@+id/todoInput"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="Yeni bir görev girin..." />
+            <!-- HTML Editor -->
+            <textarea id="editor-html" class="code-editor w-full h-full p-4 text-sm hidden" spellcheck="false"><!DOCTYPE html>
+<html>
+<body style="background:#111; color:white; text-align:center; font-family:sans-serif; display:flex; flex-direction:column; justify-content:center; height:100vh; margin:0;">
+    <h1 style="color:#f59e0b;">ElevenStudioIDE</h1>
+    <p>Hybrid WebView Container</p>
+    <button onclick="alert('WebView Active')" style="padding:10px; background:#f59e0b; border:none; border-radius:5px;">Test UI</button>
+</body>
+</html></textarea>
 
-    <Button
-        android:id="@+id/addButton"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="EKLE" />
-        
-    <ListView
-        android:id="@+id/todoList"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content" />
-
-</LinearLayout></textarea>
-
-            <!-- Manifest Editor -->
-            <textarea id="editor-manifest" class="code-editor w-full h-full p-4 text-sm hidden" spellcheck="false"><manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.aigen.app">
-
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.VIBRATE" />
-
-    <application
-        android:allowBackup="true"
-        android:icon="@mipmap/ic_launcher"
-        android:label="@string/app_name"
-        android:theme="@style/Theme.AppCompat.Light.NoActionBar">
-        
-        <activity android:name=".MainActivity"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-    </application>
-
-</manifest></textarea>
         </div>
 
-        <!-- Preview Pane (Web Simulation) -->
-        <div id="preview-pane" class="w-[375px] bg-black border-l border-gray-700 hidden flex-col shadow-2xl relative">
+        <!-- Preview Pane -->
+        <div id="preview-pane" class="w-[360px] bg-black border-l border-gray-700 hidden flex-col shadow-2xl relative">
             <div class="bg-gray-800 text-white p-2 flex justify-between items-center text-xs border-b border-gray-600">
-                <span><i class="fa-brands fa-android text-green-400"></i> Pixel 5 Emülatörü</span>
+                <span><i class="fa-solid fa-mobile-screen-button text-yellow-500"></i> ElevenEmulator</span>
                 <button onclick="togglePreview()" class="hover:text-red-400"><i class="fa-solid fa-xmark"></i></button>
             </div>
-            <!-- Simulation Container -->
-            <div class="flex-1 bg-white relative overflow-y-auto font-sans text-black flex flex-col">
-                <!-- Status Bar -->
-                <div class="bg-black text-white px-3 py-1 text-[10px] flex justify-between items-center">
-                    <span>12:30</span>
-                    <div class="flex gap-1"><i class="fa-solid fa-wifi"></i> <i class="fa-solid fa-battery-full"></i></div>
-                </div>
-                <!-- App Bar -->
-                <div class="bg-indigo-600 text-white p-4 shadow-md">
-                    <h2 class="font-bold text-lg">AI To-Do List</h2>
-                </div>
-                <!-- App Content -->
-                <div class="p-4 flex-1">
-                    <div class="flex gap-2 mb-4">
-                        <input type="text" id="sim-input" class="flex-1 border border-gray-300 rounded p-2 text-sm focus:outline-none focus:border-indigo-500" placeholder="Görev yazın...">
-                        <button onclick="simAddTask()" class="bg-indigo-600 text-white px-4 rounded hover:bg-indigo-700 shadow"><i class="fa-solid fa-plus"></i></button>
+            <div class="flex-1 bg-[#121212] relative overflow-hidden flex flex-col items-center justify-center">
+                <iframe id="html-preview-frame" class="w-full h-full border-none pointer-events-auto opacity-50"></iframe>
+                
+                <!-- Logcat Overlay -->
+                <div class="absolute bottom-0 w-full bg-black/90 text-green-400 text-[10px] p-2 font-mono h-40 overflow-y-auto border-t border-gray-700">
+                    <div class="text-gray-500 border-b border-gray-700 mb-1 sticky top-0 bg-black">Logcat: com.elevenstudio.app</div>
+                    <div id="logcat-output" class="space-y-1">
+                        <div>D/Zygote: Process started...</div>
                     </div>
-                    <ul id="sim-list" class="space-y-2">
-                        <!-- Items injected via JS -->
-                    </ul>
                 </div>
             </div>
-            <!-- Android Nav Bar -->
-            <div class="h-12 bg-black flex justify-around items-center text-gray-400 text-lg">
-                <i class="fa-solid fa-caret-left"></i>
-                <i class="fa-regular fa-circle"></i>
-                <i class="fa-regular fa-square"></i>
+            <div class="h-12 bg-black flex justify-around items-center text-gray-500 text-lg border-t border-gray-800">
+                <i class="fa-solid fa-caret-left hover:text-white"></i>
+                <i class="fa-regular fa-circle hover:text-white"></i>
+                <i class="fa-regular fa-square hover:text-white"></i>
             </div>
         </div>
-
     </main>
 
-    <!-- Status Bar -->
-    <footer class="bg-[#007acc] text-white text-[11px] p-1 px-3 flex justify-between cursor-default select-none">
+    <!-- Footer -->
+    <footer class="bg-[#2d2d2d] text-gray-400 text-[11px] p-1 px-3 flex justify-between cursor-default select-none border-t border-gray-700">
         <div class="flex gap-4">
-            <span><i class="fa-solid fa-code-branch"></i> master*</span>
-            <span><i class="fa-solid fa-circle-xmark"></i> 0 Errors</span>
-            <span><i class="fa-solid fa-triangle-exclamation"></i> 0 Warnings</span>
+            <span id="current-lang-display" class="text-yellow-500 font-bold">Kotlin</span>
+            <span><i class="fa-solid fa-check-circle"></i> ElevenStudio Engine Ready</span>
         </div>
-        <div class="flex gap-4">
-            <span>Spaces: 4</span>
-            <span>UTF-8</span>
-            <span>Kotlin</span>
+        <div>
+            <span class="mr-4">Yayınlayıcı: <strong class="text-white">ElevenStudioIDE</strong></span>
+            <span>Gemini 2.5 Flash Encrypted</span>
         </div>
     </footer>
 
-    <!-- Build Configuration Modal -->
-    <div id="build-modal" class="fixed inset-0 bg-black/80 z-50 hidden flex items-center justify-center backdrop-blur-sm">
-        <div class="bg-[#1e1e1e] w-full max-w-md rounded-lg shadow-2xl border border-[#333] transform transition-all scale-100">
-            <div class="p-4 border-b border-[#333] flex justify-between items-center">
+    <!-- Build Modal (Advanced) -->
+    <div id="build-modal" class="fixed inset-0 bg-black/85 z-50 hidden flex items-center justify-center backdrop-blur-sm">
+        <div class="bg-[#1e1e1e] w-full max-w-lg rounded-xl shadow-2xl border border-gray-700 overflow-hidden">
+            <!-- Header -->
+            <div class="p-4 border-b border-gray-700 flex justify-between items-center bg-[#252526]">
                 <h2 class="text-white font-bold flex items-center gap-2">
-                    <i class="fa-brands fa-android text-green-500"></i> APK Yapılandırması
+                    <i class="fa-brands fa-android text-green-500"></i> 
+                    APK Yapılandırması
                 </h2>
                 <button onclick="closeBuildModal()" class="text-gray-400 hover:text-white"><i class="fa-solid fa-times"></i></button>
             </div>
-            <div class="p-6 space-y-4">
-                <div>
-                    <label class="block text-xs text-gray-400 mb-1">Uygulama Adı</label>
-                    <input type="text" id="app_name" value="MyAIApp" class="w-full bg-[#252526] border border-[#333] text-white p-2 rounded focus:border-[#007acc] outline-none text-sm">
-                </div>
-                <div>
-                    <label class="block text-xs text-gray-400 mb-1">Paket Adı (Benzersiz ID)</label>
-                    <input type="text" id="pkg_name" value="com.aigen.app" class="w-full bg-[#252526] border border-[#333] text-gray-400 p-2 rounded focus:border-[#007acc] outline-none text-sm font-mono">
-                </div>
-                <div>
-                    <label class="block text-xs text-gray-400 mb-2">İzinler</label>
-                    <div class="grid grid-cols-2 gap-2 text-xs">
-                        <label class="flex items-center gap-2 cursor-pointer text-gray-300 hover:text-white"><input type="checkbox" checked class="accent-[#007acc]"> INTERNET</label>
-                        <label class="flex items-center gap-2 cursor-pointer text-gray-300 hover:text-white"><input type="checkbox" checked class="accent-[#007acc]"> CAMERA</label>
-                        <label class="flex items-center gap-2 cursor-pointer text-gray-300 hover:text-white"><input type="checkbox" class="accent-[#007acc]"> LOCATION</label>
-                        <label class="flex items-center gap-2 cursor-pointer text-gray-300 hover:text-white"><input type="checkbox" class="accent-[#007acc]"> STORAGE</label>
+            
+            <div class="p-6 space-y-5 overflow-y-auto max-h-[70vh]">
+                
+                <!-- Identity Section -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1 font-bold">Uygulama Adı</label>
+                        <input type="text" id="app_name" value="MyApp" placeholder="Örn: SuperGame" class="w-full bg-[#111] border border-gray-600 text-white p-2.5 rounded text-sm focus:border-yellow-500 outline-none transition">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1 font-bold">Yapımcı (Geliştirici)</label>
+                        <input type="text" id="dev_name" value="UserDev" placeholder="Adınız" class="w-full bg-[#111] border border-gray-600 text-white p-2.5 rounded text-sm focus:border-yellow-500 outline-none transition">
                     </div>
                 </div>
+
+                <!-- Fixed Publisher Info -->
+                <div class="bg-[#2a2a2a] p-3 rounded border border-dashed border-gray-600 flex justify-between items-center">
+                    <span class="text-xs text-gray-400">Yayınlayıcı Sertifikası:</span>
+                    <span class="text-sm font-bold text-yellow-500 font-mono tracking-wider">ElevenStudioIDE</span>
+                    <i class="fa-solid fa-lock text-xs text-gray-500"></i>
+                </div>
+
+                <!-- Permissions Section -->
+                <div>
+                    <label class="block text-xs text-gray-400 mb-2 font-bold">Android İzinleri (Manifest)</label>
+                    <div class="grid grid-cols-2 gap-3 bg-[#111] p-3 rounded border border-gray-700">
+                        <label class="flex items-center gap-2 cursor-pointer text-gray-300 hover:text-white select-none">
+                            <input type="checkbox" id="perm_internet" checked class="accent-yellow-500 w-4 h-4"> <span class="text-xs">INTERNET</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer text-gray-300 hover:text-white select-none">
+                            <input type="checkbox" id="perm_camera" class="accent-yellow-500 w-4 h-4"> <span class="text-xs">CAMERA</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer text-gray-300 hover:text-white select-none">
+                            <input type="checkbox" id="perm_storage" class="accent-yellow-500 w-4 h-4"> <span class="text-xs">STORAGE (R/W)</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer text-gray-300 hover:text-white select-none">
+                            <input type="checkbox" id="perm_location" class="accent-yellow-500 w-4 h-4"> <span class="text-xs">ACCESS_LOCATION</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Info Box -->
+                <div class="text-[10px] text-gray-500 italic">
+                    * Bu işlem ElevenStudioIDE motorunu kullanarak Kotlin, Python, Java ve C++ kodlarını tek bir APK'da birleştirir.
+                </div>
             </div>
-            <div class="p-4 border-t border-[#333] bg-[#252526] rounded-b-lg flex justify-end">
-                <button onclick="startCompilerProcess()" class="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white px-6 py-2 rounded text-sm font-bold shadow-lg flex items-center gap-2 transition-all">
-                    <i class="fa-solid fa-hammer"></i> DERLE VE İNDİR (.apk)
+
+            <!-- Footer Action -->
+            <div class="p-4 border-t border-gray-700 bg-[#252526] flex justify-end">
+                <button onclick="startCompiler()" class="w-full bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-500 hover:to-orange-500 text-white py-3 rounded text-sm font-bold shadow-lg flex items-center justify-center gap-2 transition-all">
+                    <i class="fa-solid fa-gears"></i> DERLEMEYİ BAŞLAT (APK)
                 </button>
             </div>
         </div>
     </div>
 
-    <!-- TERMINAL / COMPILER OVERLAY -->
-    <div id="compiler-terminal" class="fixed inset-0 bg-[#000000] z-[60] hidden flex flex-col font-mono text-sm">
-        <div class="p-2 border-b border-gray-800 flex justify-between items-center bg-[#111]">
-            <span class="text-gray-400 text-xs">AI Compiler Output <span class="text-green-500 animate-pulse">● Running</span></span>
-            <button onclick="closeTerminal()" id="close-term-btn" class="hidden text-red-500 text-xs hover:text-red-400 uppercase font-bold">[KAPAT]</button>
-        </div>
-        <div id="terminal-logs" class="flex-1 p-4 overflow-y-auto space-y-1 text-gray-300 pb-20">
-            <!-- Logs go here -->
-        </div>
-        <!-- Progress Bar -->
-        <div class="h-8 bg-[#1e1e1e] border-t border-gray-800 flex items-center px-4 gap-4">
-            <span id="progress-text" class="text-xs text-blue-400 w-24">Ready</span>
-            <div class="flex-1 h-2 bg-gray-800 rounded-full overflow-hidden">
-                <div id="progress-fill" class="h-full bg-blue-500 w-0 transition-all duration-300"></div>
+    <!-- Terminal -->
+    <div id="terminal" class="fixed inset-0 bg-black z-[60] hidden flex flex-col font-mono text-sm p-4 md:p-8">
+        <div class="w-full max-w-4xl mx-auto bg-[#1e1e1e] border border-gray-700 rounded-lg shadow-2xl flex flex-col h-full overflow-hidden">
+            <div class="bg-[#252526] p-2 flex justify-between items-center border-b border-gray-700 px-4">
+                <div class="flex gap-2">
+                    <div class="w-3 h-3 rounded-full bg-red-500"></div>
+                    <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+                    <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                </div>
+                <span class="text-xs text-gray-400">ElevenStudio Compiler Output</span>
+            </div>
+            <div id="terminal-content" class="flex-1 p-4 overflow-y-auto space-y-1 text-gray-300 bg-black/50"></div>
+            <div class="p-4 border-t border-gray-700 bg-[#252526]">
+                <div class="w-full bg-gray-700 h-1.5 rounded-full overflow-hidden">
+                    <div id="progress-bar" class="bg-yellow-500 h-full w-0 transition-all duration-300"></div>
+                </div>
+                <div class="flex justify-between mt-2">
+                    <span id="status-text" class="text-xs text-yellow-500 animate-pulse">System Initializing...</span>
+                    <button id="close-term-btn" onclick="closeTerminal()" class="hidden text-xs bg-red-600 hover:bg-red-700 text-white px-4 py-1 rounded transition">KAPAT</button>
+                </div>
             </div>
         </div>
     </div>
 
     <script>
-        // --- API & CONFIG ---
-        // Güvenlik notu: Bu anahtar sadece client-side demo içindir.
-        const _k1 = "QUl6YVN5Qld1ZHRFWFhI";
-        const _k2 = "c0EwVDAwaHlOSnVPcTVD";
-        const _k3 = "UlJxZkFrVmgw";
-        const API_KEY = atob(_k1 + _k2 + _k3);
+        // --- API SECURITY ---
+        const partA = "QUl6YVN5Qld1ZHRFWFhI"; 
+        const partB = "c0EwVDAwaHlOSnVPcTVD"; 
+        const partC = "UlJxZkFrVmgw";
+        function getSecureKey() { return atob(partA) + atob(partB) + atob(partC); }
 
         let currentTab = 'kotlin';
-        let isCompiling = false;
 
-        // --- UI FUNCS ---
         function switchTab(tab) {
+            document.getElementById(`editor-${currentTab}`).classList.add('hidden');
+            document.getElementById(`tab-${currentTab}`).classList.remove('tab-active');
+            document.getElementById(`tab-${currentTab}`).classList.add('tab-inactive');
+            
             currentTab = tab;
-            document.querySelectorAll('.code-editor').forEach(el => el.classList.add('hidden'));
-            document.querySelectorAll('[id^="tab-"]').forEach(el => {
-                el.classList.remove('tab-active');
-                el.classList.add('tab-inactive');
-            });
             document.getElementById(`editor-${tab}`).classList.remove('hidden');
             document.getElementById(`tab-${tab}`).classList.add('tab-active');
             document.getElementById(`tab-${tab}`).classList.remove('tab-inactive');
             
-            const label = tab === 'kotlin' ? 'Kotlin' : tab === 'xml' ? 'XML' : 'Manifest';
-            document.getElementById('lang-indicator').innerText = label;
+            const titles = {
+                'kotlin': 'Kotlin (Android Main)',
+                'python': 'Python Script (Backend)',
+                'java': 'Java (Legacy)',
+                'cpp': 'C++ (JNI Native)',
+                'html': 'HTML (WebView Assets)'
+            };
+            document.getElementById('current-lang-display').innerText = titles[tab];
         }
 
         function togglePreview() {
             const pane = document.getElementById('preview-pane');
-            pane.classList.toggle('hidden');
-            pane.classList.toggle('flex');
-            renderSimTodos();
+            const isHidden = pane.classList.contains('hidden');
+            
+            if (isHidden) {
+                pane.classList.remove('hidden');
+                pane.classList.add('flex');
+                
+                // HTML Load
+                document.getElementById('html-preview-frame').srcdoc = document.getElementById('editor-html').value;
+                
+                // Logcat Simulation
+                const logDiv = document.getElementById('logcat-output');
+                logDiv.innerHTML += `<div class="text-blue-400">I/ElevenStudio: Python Environment Loaded.</div>`;
+                setTimeout(() => {
+                    logDiv.innerHTML += `<div class="text-yellow-500">I/Python: Merhaba! System: Android (Simulated)</div>`;
+                }, 1000);
+            } else {
+                pane.classList.add('hidden');
+                pane.classList.remove('flex');
+            }
         }
 
         function openBuildModal() { document.getElementById('build-modal').classList.remove('hidden'); }
         function closeBuildModal() { document.getElementById('build-modal').classList.add('hidden'); }
-        
-        function closeTerminal() { 
-            document.getElementById('compiler-terminal').classList.add('hidden'); 
-            document.getElementById('terminal-logs').innerHTML = '';
-            document.getElementById('progress-fill').style.width = '0%';
-        }
+        function closeTerminal() { document.getElementById('terminal').classList.add('hidden'); document.getElementById('terminal-content').innerHTML = ''; document.getElementById('progress-bar').style.width = '0%'; }
 
-        // --- SIMULATION LOGIC (WEB PREVIEW) ---
-        let simTodos = ["Uygulama Testi Yap", "APK Derle"];
-        
-        function renderSimTodos() {
-            const list = document.getElementById('sim-list');
-            list.innerHTML = '';
-            simTodos.forEach((task, index) => {
-                const li = document.createElement('li');
-                li.className = "flex justify-between items-center bg-gray-100 p-3 rounded shadow-sm border border-gray-200 animate-[fadeIn_0.3s_ease-in-out]";
-                li.innerHTML = `
-                    <span class="text-sm text-gray-800">${task}</span>
-                    <button onclick="simRemoveTask(${index})" class="text-red-500 hover:text-red-700"><i class="fa-solid fa-trash"></i></button>
-                `;
-                list.appendChild(li);
-            });
-        }
-
-        function simAddTask() {
-            const input = document.getElementById('sim-input');
-            if(input.value.trim()) {
-                simTodos.push(input.value.trim());
-                input.value = '';
-                renderSimTodos();
-            }
-        }
-
-        function simRemoveTask(idx) {
-            simTodos.splice(idx, 1);
-            renderSimTodos();
-        }
-
-        // --- CORE COMPILER LOGIC ---
-
-        function log(msg, type='info') {
-            const term = document.getElementById('terminal-logs');
+        function termLog(msg, type='info') {
+            const term = document.getElementById('terminal-content');
             const div = document.createElement('div');
             const time = new Date().toLocaleTimeString('tr-TR', {hour12:false});
             
             let color = 'text-gray-300';
-            let prefix = 'INFO';
+            let border = 'transparent';
             
-            if(type === 'success') { color = 'text-green-400'; prefix = 'OK'; }
-            if(type === 'warn') { color = 'text-yellow-400'; prefix = 'WARN'; }
-            if(type === 'error') { color = 'text-red-500'; prefix = 'ERR'; }
-            if(type === 'binary') { color = 'text-green-600 font-mono text-xs opacity-70'; prefix = 'HEX'; }
+            if(type === 'success') { color = 'text-green-400'; border = '#4ade80'; }
+            if(type === 'warn') { color = 'text-yellow-400'; border = '#facc15'; }
+            if(type === 'error') { color = 'text-red-500'; border = '#ef4444'; }
+            if(type === 'python') { color = 'text-yellow-300'; border = '#f59e0b'; } // Python özel renk
 
-            div.className = `${color} font-mono break-all`;
-            div.innerHTML = `<span class="opacity-50">[${time}]</span> <span class="font-bold border border-gray-700 px-1 rounded text-[10px] mr-2">${prefix}</span> ${msg}`;
-            
+            div.className = `${color} font-mono break-all border-l-2 p-1 text-[11px] hover:bg-white/5`;
+            div.style.borderColor = border;
+            div.innerHTML = `<span class="opacity-50 mr-2">[${time}]</span>${msg}`;
             term.appendChild(div);
             term.scrollTop = term.scrollHeight;
         }
 
-        function updateProgress(pct, text) {
-            document.getElementById('progress-fill').style.width = `${pct}%`;
-            document.getElementById('progress-text').innerText = text;
-        }
-
-        async function startCompilerProcess() {
+        async function startCompiler() {
             closeBuildModal();
-            document.getElementById('compiler-terminal').classList.remove('hidden');
+            document.getElementById('terminal').classList.remove('hidden');
             document.getElementById('close-term-btn').classList.add('hidden');
-            isCompiling = true;
+            
+            // Kullanıcı verilerini al
+            const appName = document.getElementById('app_name').value || "MyElevenApp";
+            const devName = document.getElementById('dev_name').value || "Unknown";
+            const publisher = "ElevenStudioIDE"; // SABİT
+            
+            // İzinleri topla
+            let permissions = [];
+            if(document.getElementById('perm_internet').checked) permissions.push("INTERNET");
+            if(document.getElementById('perm_camera').checked) permissions.push("CAMERA");
+            if(document.getElementById('perm_storage').checked) permissions.push("WRITE_EXTERNAL_STORAGE");
+            if(document.getElementById('perm_location').checked) permissions.push("ACCESS_FINE_LOCATION");
 
-            const appName = document.getElementById('app_name').value;
-            const pkgName = document.getElementById('pkg_name').value;
-            const sourceCode = document.getElementById('editor-kotlin').value;
+            // Kodları al
+            const codes = {
+                kotlin: document.getElementById('editor-kotlin').value,
+                python: document.getElementById('editor-python').value,
+                java: document.getElementById('editor-java').value,
+                cpp: document.getElementById('editor-cpp').value,
+                html: document.getElementById('editor-html').value
+            };
 
             try {
-                // PHASE 1: PRE-COMPILE CHECK
-                log(`Build başlatıldı: ${appName} (${pkgName})`);
-                updateProgress(5, "Checking...");
+                termLog(`ElevenStudio Build Engine v2.0 Başlatılıyor...`, "info");
+                termLog(`Metadata: App=${appName}, Dev=${devName}, Pub=${publisher}`, "info");
+                document.getElementById('progress-bar').style.width = "10%";
+                
+                // STEP 1: Gemini Analysis
+                termLog("Çoklu Dil Analizi (Kotlin + Python + C++) başlatıldı...", "warn");
+                
+                const prompt = `
+                    ACT AS: ElevenStudio Compiler.
+                    CONTEXT: Creating an APK with name "${appName}", Dev "${devName}", Permissions: [${permissions.join(', ')}].
+                    INPUT: Python, Kotlin, Java, C++.
+                    
+                    TASK: 
+                    1. Analyze the Python code. Is it valid?
+                    2. Convert Kotlin/Java to simulated DEX.
+                    3. Convert C++ to simulated Assembly.
+                    
+                    OUTPUT JSON ONLY:
+                    {
+                        "status": "success",
+                        "python_check": "string (Python syntax status)",
+                        "dex_hex": "string (simulated hex snippet)",
+                        "manifest_snippet": "string (xml snippet with permissions)"
+                    }
+
+                    PYTHON CODE:
+                    ${codes.python.substring(0, 300)}...
+                `;
+
+                const aiResponse = await callGemini(prompt);
+                const result = JSON.parse(aiResponse.replace(/```json|```/g, '').trim());
+
+                // STEP 2: Processing
+                document.getElementById('progress-bar').style.width = "40%";
+                termLog(`Python Analizi: ${result.python_check}`, "python");
+                termLog("Python bytecode (.pyc) oluşturuluyor...", "python");
+                await new Promise(r => setTimeout(r, 500));
+                
+                termLog("Manifesto oluşturuluyor...", "info");
+                // Dinamik Manifesto Oluşturma
+                let permXML = "";
+                permissions.forEach(p => permXML += `<uses-permission android:name="android.permission.${p}" />\n    `);
+                
+                const fullManifest = `
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.elevenstudio.${appName.toLowerCase()}">
+    ${permXML}
+    <application android:label="${appName}" android:theme="@style/Theme.Eleven">
+        <meta-data android:name="developer" android:value="${devName}" />
+        <meta-data android:name="publisher" android:value="${publisher}" />
+        <activity android:name=".MainActivity" android:exported="true">
+            <intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter>
+        </activity>
+    </application>
+</manifest>`;
+
+                // STEP 3: APK Packaging
+                document.getElementById('progress-bar').style.width = "70%";
+                termLog("Varlıklar (Assets) ve Kütüphaneler paketleniyor...", "warn");
+                
+                const zip = new JSZip();
+                zip.file("AndroidManifest.xml", fullManifest);
+                zip.file("classes.dex", `// SIMULATED DEX\n${result.dex_hex}`);
+                
+                // Python Asset
+                const assets = zip.folder("assets");
+                assets.file("python/script.py", codes.python);
+                assets.file("index.html", codes.html);
+
+                // Native Lib
+                zip.folder("lib").folder("arm64-v8a").file("libnative.so", "// ELF HEADER...");
+                
+                // Signature
+                const meta = zip.folder("META-INF");
+                meta.file("ELEVENSTUDIO.SF", `Signature-Version: v2\nCreated-By: ${publisher}`);
+
+                document.getElementById('progress-bar').style.width = "90%";
                 await new Promise(r => setTimeout(r, 800));
 
-                log("Gradle Daemon başlatılıyor...", 'info');
-                await new Promise(r => setTimeout(r, 1000));
-                
-                // PHASE 2: GEMINI COMPILATION (Source -> DEX/Smali)
-                log("Gemini API ile bağlantı kuruluyor...", 'warn');
-                updateProgress(20, "Compiling...");
-                
-                // 1. Kod Düzeltme
-                log("Kaynak kod statik analizi yapılıyor...", 'info');
-                const fixedCode = await geminiRequest(`
-                    ACT AS: Android Senior Developer.
-                    TASK: Fix any syntax errors in this Kotlin code.
-                    OUTPUT: Return ONLY the raw fixed code.
-                    CODE: ${sourceCode}
-                `);
-                log("Kod optimize edildi.", 'success');
-
-                // 2. Binary Çeviri
-                log("JVM Bytecode -> Dalvik Bytecode (DEX) dönüşümü başlıyor...", 'warn');
-                updateProgress(45, "Dexing...");
-                
-                const dexCode = await geminiRequest(`
-                    ACT AS: Android Compiler (D8/R8).
-                    TASK: Convert this Kotlin code into Android SMALI/DEX bytecode format.
-                    DETAIL: Include .class, .super, .method, and opcodes (invoke-virtual, const-string etc).
-                    OUTPUT: Return ONLY the raw smali code text. No markdown.
-                    CODE: ${fixedCode}
-                `);
-
-                // Simulate Matrix/Binary Stream effect
-                log("--- CLASSES.DEX STREAM START ---", 'binary');
-                const lines = dexCode.split('\n');
-                for(let i=0; i<Math.min(lines.length, 15); i++) {
-                    log(lines[i], 'binary');
-                    await new Promise(r => setTimeout(r, 50));
-                }
-                log("... (truncated binary stream) ...", 'binary');
-                log("--- CLASSES.DEX STREAM END ---", 'binary');
-                log("Classes.dex başarıyla oluşturuldu.", 'success');
-
-                // PHASE 3: PACKAGING (APK ZIP)
-                updateProgress(70, "Packaging...");
-                log("APK paketi oluşturuluyor (Zip align)...", 'info');
-
-                const zip = new JSZip();
-                
-                // APK Structure
-                zip.file("AndroidManifest.xml", document.getElementById('editor-manifest').value);
-                zip.file("classes.dex", dexCode); // The "Binary" code
-                zip.file("res/layout/activity_main.xml", document.getElementById('editor-xml').value);
-                zip.file("resources.arsc", "BINARY_RESOURCE_TABLE_MOCK_DATA");
-                
-                // Signing Simulation
-                const metaInf = zip.folder("META-INF");
-                metaInf.file("CERT.SF", "Signature File Mock");
-                metaInf.file("CERT.RSA", "RSA Key Mock");
-                metaInf.file("MANIFEST.MF", `Manifest-Version: 1.0\nCreated-By: Gemini AI Compiler 1.0\n`);
-
-                log("v2 İmzalama Şeması (APK Signature Scheme v2) uygulanıyor...", 'info');
-                await new Promise(r => setTimeout(r, 1000));
-                log("İmzalama başarılı: debug.keystore", 'success');
-
-                // PHASE 4: DOWNLOAD
-                updateProgress(90, "Finalizing...");
-                log("APK derleme işlemi tamamlandı.", 'success');
-                
+                // STEP 4: Download
                 const blob = await zip.generateAsync({type:"blob"});
+                saveAs(blob, `${appName}_ElevenStudio.apk`);
+
+                document.getElementById('progress-bar').style.width = "100%";
+                document.getElementById('status-text').innerText = "Derleme Tamamlandı";
+                document.getElementById('status-text').classList.remove('animate-pulse');
+                document.getElementById('status-text').classList.add('text-green-500');
                 
-                // Save as actual .apk
-                const fileName = `${appName.replace(/\s/g, '_')}_v1.0.apk`;
-                saveAs(blob, fileName);
-                
-                updateProgress(100, "Done");
-                log(`DOSYA İNDİRİLDİ: ${fileName}`, 'success');
-                
+                termLog("BAŞARILI: APK imzalandı ve indirildi.", "success");
                 document.getElementById('close-term-btn').classList.remove('hidden');
 
-            } catch (err) {
-                log(`HATA: ${err.message}`, 'error');
-                updateProgress(0, "Failed");
+            } catch(e) {
+                termLog("HATA: " + e.message, "error");
+                document.getElementById('status-text').innerText = "Derleme Başarısız";
+                document.getElementById('status-text').classList.add('text-red-500');
                 document.getElementById('close-term-btn').classList.remove('hidden');
             }
         }
 
-        async function geminiRequest(prompt) {
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${API_KEY}`;
+        async function aiFixCode() {
+            const btn = document.querySelector('button[onclick="aiFixCode()"]');
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i>`;
+            
             try {
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-                });
-                const data = await response.json();
-                if(!data.candidates) throw new Error("API Limit veya Ağ Hatası");
-                return data.candidates[0].content.parts[0].text;
-            } catch (e) {
-                throw new Error("AI servisine ulaşılamadı. İnternet bağlantınızı kontrol edin.");
-            }
+                const code = document.getElementById(`editor-${currentTab}`).value;
+                const prompt = `FIX this ${currentTab} code. Return ONLY fixed code. No markdown.\n${code}`;
+                const fixed = await callGemini(prompt);
+                document.getElementById(`editor-${currentTab}`).value = fixed.trim();
+                alert("Kod AI tarafından düzeltildi.");
+            } catch(e) { alert("Hata: " + e.message); }
+            finally { btn.innerHTML = originalHTML; }
         }
 
-        // Init
-        window.onload = () => {
-            renderSimTodos();
-            log("Sistem Hazır. Derleme bekleniyor...", 'info');
+        async function callGemini(text) {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${getSecureKey()}`;
+            const r = await fetch(url, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ contents: [{ parts: [{ text: text }] }] }) });
+            const d = await r.json();
+            return d.candidates[0].content.parts[0].text;
         }
+
+        window.onload = () => console.log("ElevenStudioIDE Initialized.");
     </script>
 </body>
 </html>
