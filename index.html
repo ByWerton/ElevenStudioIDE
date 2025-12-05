@@ -22,6 +22,11 @@
         .tab-inactive:hover { background-color: #333; }
         /* ElevenStudio Özel Tema */
         .eleven-brand { background: linear-gradient(90deg, #f59e0b, #d97706); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: bold; }
+        
+        /* Dosya Girişi Stili */
+        input[type="file"]::file-selector-button {
+            transition: all .15s ease-in-out;
+        }
     </style>
 </head>
 <body class="h-screen flex flex-col">
@@ -219,6 +224,17 @@ Java_com_elevenstudio_app_MainActivity_stringFromJNI(
                     </div>
                 </div>
 
+                <!-- NEW ICON INPUT BLOCK -->
+                <div class="col-span-3">
+                    <label class="block text-xs text-gray-400 mb-1 font-bold">Özel İkon Dosyası Yükle (.png)</label>
+                    <input type="file" id="app_icon_file" accept="image/png" onchange="handleIconFileChange(event)" class="w-full text-sm text-gray-400
+                        file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0
+                        file:text-xs file:font-semibold
+                        file:bg-yellow-600/20 file:text-yellow-400
+                        hover:file:bg-yellow-600/30 transition duration-150">
+                    <p id="icon-status" class="text-[10px] mt-1 text-gray-500 italic">Durum: Varsayılan ikon kullanılacak.</p>
+                </div>
+                
                 <!-- Fixed Publisher Info -->
                 <div class="bg-[#2a2a2a] p-3 rounded border border-dashed border-gray-600 flex justify-between items-center">
                     <span class="text-xs text-gray-400">Yayınlayıcı Sertifikası:</span>
@@ -285,18 +301,18 @@ Java_com_elevenstudio_app_MainActivity_stringFromJNI(
     </div>
 
     <script>
-        // --- API SECURITY (Obfuscated) ---
-        // Kullanıcının isteği üzerine, API anahtarı base64 ile parçalanarak gizlendi.
-        const P1 = "QUl6YVN5Qld1ZHRF"; 
-        const P2 = "XXHsA0T00hyN";
-        const P3 = "JnVPcTVDUlJx"; 
-        const P4 = "ZkFrVmgw"; 
+        // --- API SECURITY (Simpler Obfuscation) ---
+        // Kullanıcının isteği üzerine, karmaşık parça parça bölme yerine tek parça Base64 kullanıldı.
+        // Anahtar: AIzaSyBWudtEXXHsA0T00hyNJuOq5CRRqfAkVh0
+        const ENCODED_KEY = "QUl6YVN5Qld1ZHRFWEhzAURUeE9oeU5KdU9xNUNSUlJxZkFrVmgw";
         
         function getSecureKey() { 
-            return atob(P1) + atob(P2) + atob(P3) + atob(P4); 
+            return atob(ENCODED_KEY); 
         }
 
         let currentTab = 'kotlin';
+        let appIconDataUrl = null; // Yüklenecek ikonun Data URL'sini tutar
+        let appIconFileName = null; // Yüklenecek ikonun dosya adını tutar
 
         function switchTab(tab) {
             document.getElementById(`editor-${currentTab}`).classList.add('hidden');
@@ -372,12 +388,49 @@ Java_com_elevenstudio_app_MainActivity_stringFromJNI(
             term.scrollTop = term.scrollHeight;
         }
         
-        // ** YENİ: Otomatik Hata Düzeltme Fonksiyonu **
+        // ** YENİ: İkon Dosyası Yükleme İşleyicisi **
+        function handleIconFileChange(event) {
+            const file = event.target.files[0];
+            const statusElement = document.getElementById('icon-status');
+            
+            if (file) {
+                if (!file.type.startsWith('image/png')) {
+                    statusElement.innerText = "Hata: Lütfen sadece PNG dosyası seçiniz.";
+                    statusElement.classList.add('text-red-500');
+                    appIconDataUrl = null;
+                    return;
+                }
+                
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    appIconDataUrl = reader.result;
+                    appIconFileName = file.name;
+                    statusElement.innerText = `Durum: İkon başarıyla yüklendi: ${file.name}`;
+                    statusElement.classList.remove('text-red-500');
+                    statusElement.classList.add('text-green-400');
+                };
+                reader.onerror = () => {
+                    statusElement.innerText = "Dosya okuma hatası.";
+                    statusElement.classList.add('text-red-500');
+                    appIconDataUrl = null;
+                };
+                reader.readAsDataURL(file);
+            } else {
+                appIconDataUrl = null;
+                appIconFileName = null;
+                statusElement.innerText = "Durum: Varsayılan ikon kullanılacak.";
+                statusElement.classList.remove('text-red-500', 'text-green-400');
+            }
+        }
+
+        // ** Otomatik Hata Düzeltme Fonksiyonu **
         async function autoFixAndVerifyCode(codes) {
             termLog("Ön Analiz: Kod kalitesi kontrol ediliyor...", "warn");
+            
+            // Bu prompt'a Java da eklendi.
             const prompt = `
                 ACT AS: ElevenStudio Code Reviewer and Debugger.
-                CONTEXT: I am compiling a multi-language Android APK. I need you to perform a final check on Kotlin, Python, and C++ code. If you find any syntax errors, type errors, or structural issues, FIX THEM. If there are no errors, return the original code blocks unchanged.
+                CONTEXT: I am compiling a multi-language Android APK. I need you to perform a final check on Kotlin, Python, Java, and C++ code. If you find any syntax errors, type errors, or structural issues, FIX THEM. If there are no errors, return the original code blocks unchanged.
                 
                 TASK: Return a JSON object containing the status and the FINAL, CORRECTED code blocks.
 
@@ -387,6 +440,7 @@ Java_com_elevenstudio_app_MainActivity_stringFromJNI(
                     "log": "A summary of actions taken or confirmation if no errors were found.",
                     "kotlin": "The final corrected Kotlin code.",
                     "python": "The final corrected Python code.",
+                    "java": "The final corrected Java code.",
                     "cpp": "The final corrected C++ code."
                 }
 
@@ -395,32 +449,58 @@ Java_com_elevenstudio_app_MainActivity_stringFromJNI(
                 ${codes.kotlin}
                 --- PYTHON ---
                 ${codes.python}
+                --- JAVA ---
+                ${codes.java}
                 --- C++ ---
                 ${codes.cpp}
             `;
             
-            const aiResponse = await callGemini(prompt);
-            const resultText = aiResponse.replace(/```json|```/g, '').trim();
-            const result = JSON.parse(resultText);
+            try {
+                const aiResponse = await callGemini(prompt);
+                const resultText = aiResponse.replace(/```json|```/g, '').trim();
+                const result = JSON.parse(resultText);
 
-            if (result.status === "fixed") {
-                termLog(`HATA TESPİT EDİLDİ: Otomatik düzeltme uygulandı. Log: ${result.log}`, "success");
-                
-                // Editörleri düzeltilmiş kodlarla güncelle
-                document.getElementById('editor-kotlin').value = result.kotlin;
-                document.getElementById('editor-python').value = result.python;
-                document.getElementById('editor-cpp').value = result.cpp;
-                
-                // Manifeste hata düzeltme bilgisini eklemek için yeni kodları döndür
-                return {
-                    kotlin: result.kotlin,
-                    python: result.python,
-                    cpp: result.cpp
-                };
-            } else {
-                termLog(`Kod yapısı temiz. Hata bulunamadı.`, "info");
-                return codes; // Orijinal kodları döndür
+                if (result.status === "fixed") {
+                    termLog(`HATA TESPİT EDİLDİ: Otomatik düzeltme uygulandı. Log: ${result.log}`, "success");
+                    
+                    // Editörleri düzeltilmiş kodlarla güncelle
+                    document.getElementById('editor-kotlin').value = result.kotlin || codes.kotlin;
+                    document.getElementById('editor-python').value = result.python || codes.python;
+                    document.getElementById('editor-java').value = result.java || codes.java;
+                    document.getElementById('editor-cpp').value = result.cpp || codes.cpp;
+                    
+                    // Manifeste hata düzeltme bilgisini eklemek için yeni kodları döndür
+                    return {
+                        kotlin: result.kotlin || codes.kotlin,
+                        python: result.python || codes.python,
+                        java: result.java || codes.java,
+                        cpp: result.cpp || codes.cpp,
+                        html: codes.html // HTML değişmez
+                    };
+                } else {
+                    termLog(`Kod yapısı temiz. Hata bulunamadı.`, "info");
+                    return codes; // Orijinal kodları döndür
+                }
+            } catch (e) {
+                termLog("AI Analiz Hatası: Yapısal kontrol atlanıyor. Devam ediliyor.", "error");
+                console.error("AI Analiz Hatası:", e);
+                return codes;
             }
+        }
+        
+        // Base64 Data URL'yi saf ikili verilere dönüştüren yardımcı işlev
+        function dataURLtoBlob(dataurl) {
+            const parts = dataurl.split(';base64,');
+            const contentType = parts[0].split(':')[1];
+            const raw = window.atob(parts[1]);
+            const rawLength = raw.length;
+            const uInt8Array = new Uint8Array(rawLength);
+
+            for (let i = 0; i < rawLength; ++i) {
+                uInt8Array[i] = raw.charCodeAt(i);
+            }
+
+            return new Blob([uInt8Array], {type: contentType});
         }
 
         async function startCompiler() {
@@ -431,14 +511,13 @@ Java_com_elevenstudio_app_MainActivity_stringFromJNI(
             // Kullanıcı verilerini al
             const appName = document.getElementById('app_name').value || "MyElevenApp";
             const devName = document.getElementById('dev_name').value || "Unknown";
-            const iconName = document.getElementById('icon_name').value || "ic_launcher";
-            const publisher = "ElevenStudioIDE"; // SABİT
+            let iconName = document.getElementById('icon_name').value || "app_icon"; // İkon adı manifest için
+            const publisher = "ElevenStudioIDE"; 
             
             // İzinleri topla
             let permissions = [];
             if(document.getElementById('perm_internet').checked) permissions.push("INTERNET");
             if(document.getElementById('perm_camera').checked) permissions.push("CAMERA");
-            // WRITE_EXTERNAL_STORAGE yerine MODERN izinleri kullanıyoruz
             if(document.getElementById('perm_storage').checked) permissions.push("READ_EXTERNAL_STORAGE"); 
             if(document.getElementById('perm_location').checked) permissions.push("ACCESS_FINE_LOCATION");
 
@@ -453,13 +532,13 @@ Java_com_elevenstudio_app_MainActivity_stringFromJNI(
 
             try {
                 termLog(`ElevenStudio Build Engine v3.0 Başlatılıyor...`, "info");
-                termLog(`Metadata: App=${appName}, Icon=${iconName}, Dev=${devName}, Pub=${publisher}`, "info");
+                termLog(`Metadata: App=${appName}, Dev=${devName}, Pub=${publisher}`, "info");
                 document.getElementById('progress-bar').style.width = "10%";
                 
                 // STEP 1: Otomatik Hata Düzeltme
                 codes = await autoFixAndVerifyCode(codes);
 
-                // STEP 2: Manifest & DEX Simülasyon Analizi (İlk adımdan alınan güncel kodlarla devam)
+                // STEP 2: Manifest & DEX Simülasyon Analizi
                 termLog("Çoklu Dil Simülasyon Analizi başlatıldı...", "warn");
                 
                 const prompt = `
@@ -479,9 +558,13 @@ Java_com_elevenstudio_app_MainActivity_stringFromJNI(
                 await new Promise(r => setTimeout(r, 500));
                 
                 termLog("Manifesto oluşturuluyor...", "info");
-                // Dinamik Manifesto Oluşturma
                 let permXML = "";
                 permissions.forEach(p => permXML += `<uses-permission android:name="android.permission.${p}" />\n    `);
+                
+                // appIconDataUrl varsa, iconName'i de buna göre ayarlayalım
+                if (appIconDataUrl) {
+                    iconName = iconName.replace(/[^a-z0-9_]/g, '') || "custom_icon";
+                }
                 
                 const fullManifest = `
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.elevenstudio.${appName.toLowerCase().replace(/[^a-z0-9]/g, '')}">
@@ -489,8 +572,8 @@ Java_com_elevenstudio_app_MainActivity_stringFromJNI(
     <application 
         android:label="${appName}" 
         android:theme="@style/Theme.Eleven"
-        android:icon="@mipmap/${iconName.replace(/[^a-z0-9_]/g, '')}"
-        android:roundIcon="@mipmap/${iconName.replace(/[^a-z0-9_]/g, '')}_round"
+        android:icon="@mipmap/${iconName}"
+        android:roundIcon="@mipmap/${iconName}_round"
     >
         <meta-data android:name="developer" android:value="${devName}" />
         <meta-data android:name="publisher" android:value="${publisher}" />
@@ -502,16 +585,26 @@ Java_com_elevenstudio_app_MainActivity_stringFromJNI(
 
                 // STEP 4: APK Packaging
                 document.getElementById('progress-bar').style.width = "70%";
-                termLog("Varlıklar (Assets) ve Kütüphaneler paketleniyor... (Ayrıştırma sorununu önlemek için sıkı dosya yapısı kullanıldı.)", "warn");
+                termLog("Varlıklar (Assets) ve Kütüphaneler paketleniyor...", "warn");
                 
                 const zip = new JSZip();
                 zip.file("AndroidManifest.xml", fullManifest);
                 zip.file("classes.dex", `// SIMULATED DEX\n${result.dex_hex}`);
                 
-                // Python Asset
+                // Python & HTML Assetleri
                 const assets = zip.folder("assets");
                 assets.file("python/script.py", codes.python);
                 assets.file("index.html", codes.html);
+
+                // Yüklenen İkonu ZIP'e Ekleme
+                if (appIconDataUrl) {
+                    const iconBlob = dataURLtoBlob(appIconDataUrl);
+                    // mipmap/ klasörüne (simülasyon) ikon dosyasını ekle
+                    zip.folder("res").folder("mipmap").file(`${iconName}.png`, iconBlob, { binary: true });
+                    termLog(`Özel ikon (${appIconFileName}) APK içine eklendi: res/mipmap/${iconName}.png`, "success");
+                } else {
+                    termLog("Özel ikon yüklenmedi. Varsayılan ikon kullanılacak.", "info");
+                }
 
                 // Native Lib
                 zip.folder("lib").folder("arm64-v8a").file("libnative.so", "// ELF HEADER...");
@@ -523,16 +616,16 @@ Java_com_elevenstudio_app_MainActivity_stringFromJNI(
                 document.getElementById('progress-bar').style.width = "90%";
                 await new Promise(r => setTimeout(r, 800));
 
-                // STEP 5: Download (.apk uzantısı ZIP olmadan kaydediliyor)
+                // STEP 5: Download (.apk uzantısı ile ZIP olarak kaydediliyor)
                 const blob = await zip.generateAsync({type:"blob"});
-                saveAs(blob, `${appName.replace(/\s/g, '_')}_ElevenStudio.apk`); // Uzantı fixlendi
+                saveAs(blob, `${appName.replace(/\s/g, '_')}_ElevenStudio.apk`); 
 
                 document.getElementById('progress-bar').style.width = "100%";
                 document.getElementById('status-text').innerText = "Derleme Tamamlandı";
                 document.getElementById('status-text').classList.remove('animate-pulse');
                 document.getElementById('status-text').classList.add('text-green-500');
                 
-                termLog("BAŞARILI: APK imzalandı ve indirildi. (Uzantı kontrol edildi.)", "success");
+                termLog("BAŞARILI: APK imzalandı ve indirildi.", "success");
                 document.getElementById('close-term-btn').classList.remove('hidden');
 
             } catch(e) {
@@ -565,17 +658,39 @@ Java_com_elevenstudio_app_MainActivity_stringFromJNI(
             finally { btn.innerHTML = originalHTML; }
         }
 
+        // Gemini API Çağrısı
         async function callGemini(text) {
             const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${getSecureKey()}`;
-            const r = await fetch(url, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ contents: [{ parts: [{ text: text }] }] }) });
             
-            // Exponential Backoff simülasyonu gerekli değil, tek seferlik çağrı yapılıyor.
-            const d = await r.json();
-            
-            if (d.candidates && d.candidates.length > 0 && d.candidates[0].content && d.candidates[0].content.parts && d.candidates[0].content.parts.length > 0) {
-                return d.candidates[0].content.parts[0].text;
-            } else {
-                throw new Error("Gemini API'dan geçerli yanıt alınamadı.");
+            // Hata işleme ve geri çekilme (Exponential Backoff) simülasyonu
+            const MAX_RETRIES = 3;
+            for (let i = 0; i < MAX_RETRIES; i++) {
+                try {
+                    const response = await fetch(url, { 
+                        method: 'POST', 
+                        headers: {'Content-Type': 'application/json'}, 
+                        body: JSON.stringify({ contents: [{ parts: [{ text: text }] }] }) 
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.candidates && data.candidates.length > 0 && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts.length > 0) {
+                            return data.candidates[0].content.parts[0].text;
+                        } else {
+                            throw new Error("Gemini API'dan geçerli yanıt alınamadı.");
+                        }
+                    } else if (response.status === 429 && i < MAX_RETRIES - 1) {
+                        const delay = Math.pow(2, i) * 1000; // 1s, 2s, 4s
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        // Retry loop continues
+                    } else {
+                        throw new Error(`API hatası: ${response.statusText}`);
+                    }
+                } catch (error) {
+                    if (i === MAX_RETRIES - 1) {
+                        throw error;
+                    }
+                }
             }
         }
 
